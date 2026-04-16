@@ -18,6 +18,865 @@
 </head>
 <body>
   <div id="root"></div>
-  <script type="text/babel" data-presets="react" src="./app.jsx"></script>
+  <script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+
+const C = {
+  brand: "#126BF9", brandHover: "#014EBF", brandDark: "#061530",
+  brandLight: "#F4F8FF", brandMuted: "#DDEAFF", brandTint: "#C3D9FC", brandAccent: "#88B3FB",
+  text: "#0D182C", textSec: "#2D3A4E", textMuted: "#5C687B", textSubtle: "#848EA0",
+  bg: "#FFFFFF", bgSunken: "#F8F8FA",
+  borderDefault: "#CBD3DF", borderSubtle: "#E9EDF4",
+  success: "#4FD35E", warning: "#E99903", danger: "#ED3533", info: "#02B3CF",
+  indigo: "#624BFF", aqua: "#00CCA8", orange: "#EC7204", berry: "#DA1583", plum: "#9636DF",
+};
+const pC = [C.brand, C.indigo, C.aqua, C.orange, C.berry];
+
+// ── THEME DATA (chronological milestones) ──
+
+const themes = [
+  {
+    title: "Enrollment & Eligibility",
+    color: C.brand,
+    impactHeadline: "Eliminated false enrollments, missed cancellations, and incorrect charges to former residents across all PMS vendors.",
+    ticketsDone: 12,
+    milestones: [
+      { date: "Jan 2025", author: "Julio", desc: "Tightened ResMan sync to exclude guarantors from enrollment", ticket: "CRM-3474" },
+      { date: "Jan 2025", author: "Julio", desc: "Auto-cancel logic for residents transitioning to former status", ticket: null },
+      { date: "Mar 2025", author: "Julio", desc: "Stopped pending-renewal residents from being incorrectly canceled", ticket: null },
+      { date: "Mar 2025", author: "Julio", desc: "Blocked enrollment for residents with 'Lost' status", ticket: "CRM-3923" },
+      { date: "Sep 2025", author: "Alexis", desc: "Prevented guarantors from enrolling through the CB portal", ticket: "CRM-5386" },
+      { date: "Nov 2025", author: "Chao", desc: "Refined auto-enrollment for CURRENT, PENDING_RENEWAL, and RENEWAL statuses with system vs. user cancellation distinction", ticket: null },
+      { date: "Dec 2025", author: "Alexis", desc: "Blocked ineligible users and enforced launch-date gating on portal access", ticket: null },
+      { date: "Dec 2025", author: "Alexis / Julio", desc: "Added is_self_enrolled tracking with backfill so self-enrolled residents are not auto-canceled", ticket: null },
+      { date: "Jan 2026", author: "Alexis", desc: "Allowed ResMan employee-residents with (EMP) naming to enroll correctly", ticket: "CRM-6221" },
+      { date: "Jan 2026", author: "Alexis / Julio", desc: "Blocked applicants from portal access; fixed RealPage resident pull edge cases", ticket: null },
+      { date: "Feb 2026", author: "Julio", desc: "Autoenrollment exclusion rules to prevent bad enrollments at source", ticket: "CRM-7358" },
+    ],
+  },
+  {
+    title: "Subscription Lifecycle & Cancellation",
+    color: C.indigo,
+    impactHeadline: "Moved CB from a flat status flag to a real subscription system with auditability, admin controls, and safe lifecycle transitions.",
+    ticketsDone: 14,
+    milestones: [
+      { date: "Feb 2025", author: "Julio", desc: "Built scheduled property-level deactivation with automatic resident cancellation", ticket: "CRM-3656" },
+      { date: "Feb 2026", author: "Julio", desc: "Introduced CBSubscriptionType and CBResidentSubscription models — the first real subscription architecture", ticket: null },
+      { date: "Feb 2026", author: "Alexis / Julio", desc: "Lease removal now triggers unsubscription; auto-created subscription types per property", ticket: null },
+      { date: "Feb 2026", author: "Chintan", desc: "Added admin cancellation actions: Opt-Out & Notify, and Silent Opt-Out", ticket: "CRM-7234" },
+      { date: "Feb 2026", author: "Alexis", desc: "Disabled save/edit buttons for read-only subscription records", ticket: "CRM-7231" },
+      { date: "Feb 2026", author: "Alexis", desc: "Fixed multiple pricing periods showing for same resident in admin", ticket: "CRM-7232" },
+      { date: "Mar 2026", author: "Alexis", desc: "Added email search, property/unit/status columns, and resident detail fields to subscription admin", ticket: "CRM-7235" },
+      { date: "Mar 2026", author: "Alexis", desc: "Enabled month-to-month residents to stay enrolled and reported", ticket: "CRM-5651" },
+      { date: "Mar 2026", author: "Alexis", desc: "New subscription fields surfaced in cbresidentsubscription admin views", ticket: "CRM-7612" },
+    ],
+  },
+  {
+    title: "Portal Access & Resident Experience",
+    color: C.aqua,
+    impactHeadline: "Eliminated blank screens, unauthorized access, and hard-to-diagnose login failures. Hardened portal security with dedicated auth tokens.",
+    ticketsDone: 18,
+    milestones: [
+      { date: "Sep 2025", author: "Julio", desc: "Fixed blank-screen login failure — portal now attempts Array user creation on access and returns explicit errors", ticket: "CRM-5391" },
+      { date: "Oct 2025", author: "Julio", desc: "Security: Broken access control allowing score modification patched", ticket: "CRM-5304" },
+      { date: "Oct 2025", author: "Julio", desc: "Security: KBA step bypass vulnerability patched", ticket: "CRM-5305" },
+      { date: "Oct 2025", author: "Julio", desc: "Security: JWT expiration after logout enforced", ticket: "CRM-5306" },
+      { date: "Oct 2025", author: "Julio", desc: "Security: Password policy enforcement during registration", ticket: "CRM-5307" },
+      { date: "Oct 2025", author: "Julio", desc: "Introduced dedicated CB auth token flow with own serializer and short lifetime", ticket: null },
+      { date: "Jan 2026", author: "Alexis", desc: "Fixed Array user creation errors for multiple properties (Astor, Spur Cross, Mira Santi)", ticket: "CRM-6578" },
+      { date: "Jan 2026", author: "Julio", desc: "Resolved strong password validation and identity verification failures", ticket: "CRM-6863" },
+      { date: "Jan 2026", author: "Alexis", desc: "Fixed CB Portal login error after password reset", ticket: "CRM-6680" },
+      { date: "Feb 2026", author: "Julio", desc: "Investigated and fixed errors when residents set up CB accounts from portal", ticket: "CRM-7150" },
+      { date: "Mar 2026", author: "Chintan", desc: "Made portal pricing dynamic from subscription data — removed hardcoded $14.95", ticket: "CRM-6517" },
+      { date: "Apr 2026", author: "Alexis", desc: "Fixed white-screen login regression", ticket: "CRM-8229" },
+    ],
+  },
+  {
+    title: "PMS Sync & Billing Reliability",
+    color: C.orange,
+    impactHeadline: "Charge push failures became visible and actionable. RealPage went from partial to production-grade. Billing accuracy improved across Yardi, ResMan, and RealPage.",
+    ticketsDone: 16,
+    milestones: [
+      { date: "Dec 2024", author: "Julio", desc: "Resolved PMS push issues causing silent charge failures", ticket: "CRM-3410" },
+      { date: "Jan 2025", author: "Julio", desc: "Fixed PMS Billing Process Invalid Customer ID error", ticket: "CRM-3575" },
+      { date: "Jan 2025", author: "Julio", desc: "Created Yardi integration for CB and CRM with separate credentials", ticket: "CRM-3753" },
+      { date: "Jun 2025", author: "Julio", desc: "Built shared Yardi error handling with PMS logs, retry logic, and failure emails", ticket: "CRM-4496" },
+      { date: "Jun 2025", author: "Julio", desc: "Added email alerts for Credit Builder billing process failures", ticket: "CRM-4529" },
+      { date: "Jun 2025", author: "Julio", desc: "Yardi: stored R_codes and pulled roommate DOBs for accurate resident matching", ticket: "CRM-4547" },
+      { date: "Jul–Sep 2025", author: "Julio", desc: "Built complete RealPage API integration from scratch", ticket: "CRM-4733" },
+      { date: "Aug 2025", author: "Julio", desc: "Tightened free-period billing logic so renewal residents aren't charged during first free month", ticket: "CRM-5079" },
+      { date: "Oct 2025", author: "Julio", desc: "RealPage architecture: vendor-specific payment-history logic, persistent transaction metadata, historical transaction pulling", ticket: null },
+      { date: "Nov 2025", author: "Julio", desc: "Fixed RealPage residents puller issue", ticket: "CRM-5567" },
+      { date: "Dec 2025", author: "Julio", desc: "Fixed unit pull failures when RealPage UnitNumber repeats across buildings", ticket: "CRM-6505" },
+      { date: "Jan 2026", author: "Julio", desc: "Enabled RealPage in CB PMS sync with production report accuracy fixes and charge-push logging", ticket: null },
+      { date: "Apr 2026", author: "Julio", desc: "Investigating Avanti Yardi nightly sync failure since March 10 affecting 387 residents", ticket: "CRM-8089" },
+    ],
+  },
+  {
+    title: "Payment History & Reporting Accuracy",
+    color: C.berry,
+    impactHeadline: "One of the biggest quality improvements in the product's history. Delinquency signals became trustworthy. Payment history now covers the full resident lifecycle across all PMS integrations.",
+    ticketsDone: 22,
+    milestones: [
+      { date: "Nov 2024", author: "Julio", desc: "Built the first PMS charges pushed report — gave operations visibility into what was actually sent to PMS", ticket: "CRM-3320" },
+      { date: "Nov 2024", author: "Julio", desc: "Aggregated payment history across matching leases for multi-community residents", ticket: null },
+      { date: "Dec 2024", author: "Julio", desc: "Expanded bureau reporting with joint applicant support and account status handling", ticket: null },
+      { date: "Dec 2024", author: "Julio", desc: "Credit transactions not being considered for payment report — fixed", ticket: "CRM-3423" },
+      { date: "Mar 2025", author: "Julio", desc: "Generated combined Equifax + Credit Builder report with adjusted logic", ticket: "CRM-4001" },
+      { date: "Mar 2025", author: "Alexis", desc: "Investigated and resolved discrepancy in residents on different CB reports", ticket: "CRM-4019" },
+      { date: "Apr 2025", author: "Julio", desc: "Added reporting resilience: negative-balance-only modes, handling when no CB settings exist", ticket: null },
+      { date: "Jun 2025", author: "Julio", desc: "Built new Array credit reporting generator", ticket: "CRM-4652" },
+      { date: "Aug 2025", author: "Julio", desc: "Fixed errors and warnings in the new Array report", ticket: "CRM-5227" },
+      { date: "Nov 2025", author: "Julio", desc: "Accurate open/closed status reporting per lease", ticket: "CRM-4710" },
+      { date: "Dec 2025", author: "Alexis", desc: "Resolved different account numbers appearing in CB report", ticket: "CRM-5337" },
+      { date: "Oct 2025–Feb 2026", author: "Alexis", desc: "Built the new payment-history engine: monthly rent charges, prior credits, early payments, and transaction backfills for missing months", ticket: "CRM-5648" },
+      { date: "Oct 2025", author: "Julio", desc: "Used RealPage rent charge open/closed status to determine on-time rent", ticket: "CRM-5649" },
+      { date: "Jan 2026", author: "Alexis", desc: "Fixed incorrect Paid before late date / Paid Entire Rent / Paid on Time status values", ticket: "CRM-6699" },
+      { date: "Jan 2026", author: "Julio", desc: "Fixed CB production report date logic and inclusion rules", ticket: "CRM-6519" },
+      { date: "Jan–Feb 2026", author: "Alexis", desc: "Resolved data mismatches across CB reports and monthly revenue report — 8 tickets fixed in one sprint", ticket: "CRM-6781" },
+    ],
+  },
+  {
+    title: "Admin Tooling & Operational Visibility",
+    color: C.plum,
+    impactHeadline: "Operators can now trace billing, subscription, and settings changes with full audit trails. Reconciliation went from guesswork to confident.",
+    ticketsDone: 10,
+    milestones: [
+      { date: "Nov 2024", author: "Julio", desc: "Added dedicated admin CSV report for charges pushed — broken down by property, unit, count, and push timestamp", ticket: "CRM-3320" },
+      { date: "Jan 2026", author: "Julio", desc: "Added CB settings history for diagnosing pricing and behavior changes", ticket: null },
+      { date: "Feb 2026", author: "Alexis", desc: "Fixed inability to use admin feature to check CB charges", ticket: "CRM-7025" },
+      { date: "Feb 2026", author: "Alexis", desc: "PMS Charges Pushed Report ParseError fixed", ticket: "CRM-7257" },
+      { date: "Feb 2026", author: "Alexis", desc: "Added email search to subscription list page", ticket: "CRM-7235" },
+      { date: "Mar 2026", author: "Alexis", desc: "Added Property, Unit, Resident Type, CB status/date columns to admin list", ticket: "CRM-7236" },
+      { date: "Mar 2026", author: "Alexis", desc: "Added resident detail fields: Unit, Lease, Resident Type, Primary Resident, Object History", ticket: "CRM-7238" },
+      { date: "Mar 2026", author: "Alexis", desc: "Added CB activity-log generation for full audit trail", ticket: null },
+    ],
+  },
+  {
+    title: "Monitoring, Alerts & Launch Controls",
+    color: C.info,
+    impactHeadline: "Team can now spot enrollment drops before customers complain. Launch discipline improved and premature notifications eliminated.",
+    ticketsDone: 5,
+    milestones: [
+      { date: "Dec 2024", author: "Julio", desc: "Scheduled checks for enrolled residents missing enrollment dates", ticket: null },
+      { date: "Nov 2025", author: "Chao", desc: "Added email_notification_enabled_date so notifications only start when properties are ready", ticket: null },
+      { date: "Nov 2025", author: "Chao", desc: "Temporarily excluded properties during testing, then cleaned up for go-live", ticket: null },
+      { date: "Dec 2025–Apr 2026", author: "Alexis", desc: "Built weekly MTD enrollment health check with Datadog alerts — first proactive monitoring for CB", ticket: "CRM-6212" },
+      { date: "Apr 2026", author: "Alexis", desc: "Anomaly detection tool in progress — foundation for charge oversight", ticket: "CRM-7998" },
+    ],
+  },
+];
+
+// ── PHASE DATA (with ticket mapping) ──
+
+const phases = [
+  {
+    id: 1, title: "Immediate Stabilization", ticket: "CRM-7998",
+    dates: "Apr 20 – May 8, 2026", focus: "Charge hardening & reversal fixes", color: pC[0],
+    priority: "P0 — Revenue & Compliance", startWeek: 0, durationWeeks: 3,
+    whyItMatters: "Recent posting incidents showed that despite progress, charge posting failures can still go undetected. This phase makes every push observable and every failure immediately visible, protecting revenue and preventing compliance risk from silent misses.",
+    deliverables: [
+      { text: "Exclude reversals from duplicate-detection logic", ticket: null, status: "needs_ticket" },
+      { text: "Add explicit reversal typing in PostTransactionsHistory", ticket: null, status: "needs_ticket" },
+      { text: "Backfill historical reversal records", ticket: null, status: "needs_ticket" },
+      { text: "Pre-run dry run showing expected properties and expected charges", ticket: "CRM-7998", status: "in_progress", note: "Scoped under anomaly detection tool" },
+      { text: "Post-run reconciliation: expected vs. posted by property and resident/lease", ticket: "CRM-7998", status: "in_progress", note: "Scoped under anomaly detection tool" },
+      { text: "Slack & email alerts for missing properties, zero-charge properties, API failures, skipped properties, and abnormal charge deltas", ticket: "CRM-7998", status: "in_progress", note: "Extends existing email alerting from CRM-4529" },
+      { text: "Job heartbeat events for 'started' and 'completed'", ticket: null, status: "needs_ticket" },
+    ],
+  },
+  {
+    id: 2, title: "Enrollment Validation & Audit", ticket: "CRM-5701",
+    dates: "May 11 – Jun 5, 2026", focus: "Single enrollment validator & dry-run audit", color: pC[1],
+    priority: "P1 — Eligibility Integrity", startWeek: 3, durationWeeks: 4,
+    whyItMatters: "Enrollment eligibility is currently checked in multiple places with slightly different logic. This phase creates one source of truth for 'is this resident eligible?' and enforces it everywhere, then audits every active enrollment against it.",
+    deliverables: [
+      { text: "Build one shared validator returning allowed, reason_code, and reason_message", ticket: "CRM-5701", status: "in_review", note: "Core validator in review" },
+      { text: "Enforce validator at all entry points: auto-enroll, portal/API enrollment, imports, and backfills", ticket: "CRM-5701", status: "in_review" },
+      { text: "Autoenrollment exclusion rules integrated with validator", ticket: "CRM-7358", status: "in_progress", note: "Eng in progress" },
+      { text: "Run dry-run audit against all active enrollments", ticket: "CRM-5701", status: "in_review" },
+      { text: "CSV exports and Slack summaries by reason code", ticket: null, status: "needs_ticket" },
+      { text: "Add remediation fields: cancel_reason_code, audit_remediation_flag, audit_remediation_date", ticket: null, status: "needs_ticket" },
+      { text: "Prevent re-enroll loops where canceled residents are immediately re-enrolled by background jobs", ticket: null, status: "needs_ticket" },
+    ],
+  },
+  {
+    id: 3, title: "Remediation & Oversight Expansion", ticket: "CRM-5701 cont.",
+    dates: "Jun 8 – Jun 26, 2026", focus: "Audit cleanup & anomaly coverage", color: pC[2],
+    priority: "P1 — Operational Confidence", startWeek: 7, durationWeeks: 3,
+    whyItMatters: "Phase 2's audit will surface enrollments that shouldn't exist. This phase cleans them up safely and builds the broader anomaly detection net so new problems are caught automatically going forward.",
+    deliverables: [
+      { text: "Remediation scripts to safely resolve audit findings (cancel, flag, or correct)", ticket: null, status: "needs_ticket" },
+      { text: "Slack summaries by reason code after each remediation batch", ticket: null, status: "needs_ticket" },
+      { text: "Post-run summary report sent automatically to engineering and product after every charge push", ticket: null, status: "needs_ticket" },
+      { text: "Charge-count anomaly detection: alert if charge count deviates significantly from prior month", ticket: "CRM-7998", status: "in_progress", note: "Extension of anomaly detection tool" },
+      { text: "Property-count mismatch detection: alert if fewer properties are charged than expected", ticket: null, status: "needs_ticket" },
+      { text: "Zero-charge property alerting: flag properties with enrolled residents but no charges posted", ticket: null, status: "needs_ticket" },
+      { text: "Log a reason code for every property skip in the charge pipeline", ticket: null, status: "needs_ticket" },
+    ],
+  },
+  {
+    id: 4, title: "State-Driven Eligibility Architecture", ticket: "Architecture",
+    dates: "Jun 29 – Aug 7, 2026", focus: "Architectural rewrite to state-driven billing", color: pC[3],
+    priority: "P2 — Architectural Durability", startWeek: 10, durationWeeks: 6,
+    whyItMatters: "Today, charge eligibility is determined by scattered monthly batch-job logic. This phase introduces explicit resident billing states so every resident's eligibility is always knowable, charges flow from state rather than assumptions, and mock runs validate billing before anything is posted live.",
+    states: [
+      { label: "Eligible for Enrollment", color: C.info },
+      { label: "Enrolled & Billable", color: C.success },
+      { label: "Enrolled, Not Billable", color: C.warning },
+      { label: "Opted Out", color: C.textSubtle },
+      { label: "Ineligible", color: C.danger },
+    ],
+    deliverables: [
+      { text: "Design and implement resident eligibility state model with 5 explicit states", ticket: null, status: "needs_ticket" },
+      { text: "Build billable / non-billable state engine that governs charge selection", ticket: null, status: "needs_ticket" },
+      { text: "Add reason codes for every non-billable and ineligible status", ticket: null, status: "needs_ticket" },
+      { text: "Run mock charge pushes during the month to validate eligibility before live posting", ticket: null, status: "needs_ticket" },
+      { text: "Migrate charge selection to be driven from state instead of scattered batch-job logic", ticket: null, status: "needs_ticket" },
+      { text: "Add 'Do Not Enroll' subscription status for admin-level enrollment blocks", ticket: "CRM-7237", status: "under_discussion", note: "Under discussion — feeds into state model" },
+    ],
+  },
+  {
+    id: 5, title: "Support Assistant & Documentation", ticket: "CRM-7182",
+    dates: "Aug 10 – Aug 28, 2026", focus: "Read-only support tooling & runbooks", color: pC[4],
+    priority: "P3 — Support Efficiency", startWeek: 16, durationWeeks: 3,
+    whyItMatters: "After the core pipeline and eligibility model are hardened, support needs fast answers to 'what happened?' and 'who is enrolled/charged?'. This phase builds a read-only assistant and codifies operational knowledge so support doesn't depend on engineering for routine investigation.",
+    deliverables: [
+      { text: "Build read-only Slack support assistant", ticket: "CRM-7182", status: "in_progress", note: "AI chatbot investigation underway" },
+      { text: "Predefined support skills for common questions (enrollment status, charge history, posting results)", ticket: null, status: "needs_ticket" },
+      { text: "Code and process tracing answers: 'why was this resident canceled?', 'when was this charge pushed?'", ticket: null, status: "needs_ticket" },
+      { text: "Operator runbooks for common CB operations and incident response", ticket: null, status: "needs_ticket" },
+      { text: "Final hardening QA checklist to validate all Phase 1–4 work", ticket: null, status: "needs_ticket" },
+    ],
+  },
+];
+
+// ── JIRA TICKETS ──
+
+const tickets = [
+  { key: "CRM-3320", assignee: "Julio", status: "Done", priority: "Medium", created: "2024-11-04", resolved: "2024-11-14", summary: "Report with Residents info of transactions pushed" },
+  { key: "CRM-3323", assignee: "Mauricio", status: "To Do", priority: "Medium", created: "2024-11-04", resolved: null, summary: "Create partner account" },
+  { key: "CRM-3337", assignee: "Julio", status: "Done", priority: "Highest", created: "2024-11-06", resolved: "2024-11-21", summary: "Task to pull Resident Transactions did not run" },
+  { key: "CRM-3341", assignee: "Julio", status: "Done", priority: "Medium", created: "2024-11-07", resolved: "2025-01-09", summary: "Cancel date < enrolment date, remove from cancellation report" },
+  { key: "CRM-3410", assignee: "Julio", status: "Done", priority: "High", created: "2024-12-03", resolved: "2024-12-06", summary: "PMS Push Issues" },
+  { key: "CRM-3415", assignee: "Julio", status: "Done", priority: "High", created: "2024-12-04", resolved: "2025-03-04", summary: "Credit Builder Report Updates" },
+  { key: "CRM-3423", assignee: "Julio", status: "Done", priority: "Low", created: "2024-12-09", resolved: "2025-01-30", summary: "Credit transactions not considered for payment report" },
+  { key: "CRM-3446", assignee: "Julio", status: "Done", priority: "High", created: "2024-12-13", resolved: "2025-01-08", summary: "Setup to run Mark Taylor billing on December 30th" },
+  { key: "CRM-3474", assignee: "Julio", status: "Done", priority: "High", created: "2024-12-17", resolved: "2025-01-08", summary: "Check for changes in renewal status before PMS push" },
+  { key: "CRM-3575", assignee: "Julio", status: "Done", priority: "High", created: "2025-01-07", resolved: "2025-01-09", summary: "PMS Billing Process Invalid Customer ID Error" },
+  { key: "CRM-3638", assignee: "Julio", status: "Done", priority: "Highest", created: "2025-01-14", resolved: "2025-01-16", summary: "Generate one-time credit builder report" },
+  { key: "CRM-3656", assignee: "Julio", status: "Done", priority: "Medium", created: "2025-01-15", resolved: "2025-02-05", summary: "Create admin function to deactivate credit builder" },
+  { key: "CRM-3676", assignee: "Mauricio", status: "Done", priority: "Low", created: "2025-01-18", resolved: "2025-02-04", summary: "Create marketing site for CAPREIT" },
+  { key: "CRM-3753", assignee: "Gustavo", status: "Done", priority: "Low", created: "2025-01-27", resolved: "2025-01-31", summary: "Create Yardi integration for CB and CRM with different credentials" },
+  { key: "CRM-3797", assignee: "Gustavo", status: "Done", priority: "Low", created: "2025-02-04", resolved: "2025-11-12", summary: "Placeholder [=Property phone number=] in Standalone CB" },
+  { key: "CRM-3810", assignee: "Julio", status: "Done", priority: "High", created: "2025-02-06", resolved: "2025-03-05", summary: "Remove missing residents from all Avanti properties" },
+  { key: "CRM-3880", assignee: "Julio", status: "Done", priority: "Medium", created: "2025-02-20", resolved: "2025-05-19", summary: "Add manual transactions for CB accounts" },
+  { key: "CRM-3899", assignee: "Julio", status: "Done", priority: "Medium", created: "2025-02-27", resolved: "2025-03-11", summary: "Address for Villas at Mountain Vista Ranch missing from CB reports" },
+  { key: "CRM-3923", assignee: "Julio", status: "Done", priority: "High", created: "2025-03-04", resolved: "2025-04-21", summary: "Do not enroll residents with status Lost" },
+  { key: "CRM-3935", assignee: "Julio", status: "Done", priority: "Highest", created: "2025-03-05", resolved: "2025-08-06", summary: "Embed Array components" },
+  { key: "CRM-3954", assignee: "Julio", status: "Done", priority: "Highest", created: "2025-03-11", resolved: "2025-05-09", summary: "Provide xml files for residents with different p-codes" },
+  { key: "CRM-4001", assignee: "Julio", status: "Done", priority: "High", created: "2025-03-18", resolved: "2025-03-19", summary: "Generate Combined Equifax + Credit Builder Report" },
+  { key: "CRM-4019", assignee: "Alexis", status: "Done", priority: "High", created: "2025-03-20", resolved: "2025-12-16", summary: "Discrepancy in residents on different CB Reports" },
+  { key: "CRM-4194", assignee: "Mauricio", status: "To Do", priority: "Low", created: "2025-04-10", resolved: null, summary: "Automatically update Standalones fields" },
+  { key: "CRM-4276", assignee: "Alexis", status: "Done", priority: "Medium", created: "2025-04-28", resolved: "2026-02-17", summary: "Units with active CB subscriptions not on Billing Report" },
+  { key: "CRM-4343", assignee: "Julio", status: "To Do", priority: "Low", created: "2025-05-12", resolved: null, summary: "Update Cancel Plan Modal with Dynamic Last Reported Month" },
+  { key: "CRM-4496", assignee: "Julio", status: "Done", priority: "High", created: "2025-06-04", resolved: "2025-07-01", summary: "Yardi Error Handling when posting CB charges" },
+  { key: "CRM-4529", assignee: "Julio", status: "Done", priority: "High", created: "2025-06-07", resolved: "2025-07-01", summary: "Email alerts for Credit Builder billing Process" },
+  { key: "CRM-4547", assignee: "Julio", status: "Done", priority: "Highest", created: "2025-06-10", resolved: "2025-08-05", summary: "Yardi: Store R_codes & Pull Roommate DOBs" },
+  { key: "CRM-4652", assignee: "Julio", status: "Done", priority: "Highest", created: "2025-06-23", resolved: "2025-08-12", summary: "New Array Credit Reporting Generator" },
+  { key: "CRM-4710", assignee: "Julio", status: "Done", priority: "High", created: "2025-06-30", resolved: "2025-11-28", summary: "Report Accurate Open/Closed Status per Lease" },
+  { key: "CRM-4733", assignee: "Julio", status: "Done", priority: "Highest", created: "2025-07-01", resolved: "2025-09-02", summary: "RealPage API Integration" },
+  { key: "CRM-5079", assignee: "Julio", status: "Done", priority: "Low", created: "2025-08-06", resolved: "2025-08-20", summary: "Estia Windrose #111 - CB charged before move in" },
+  { key: "CRM-5227", assignee: "Julio", status: "Done", priority: "High", created: "2025-08-22", resolved: "2025-08-27", summary: "Errors and Warnings in new Array report" },
+  { key: "CRM-5300", assignee: "Mauricio", status: "Done", priority: "High", created: "2025-08-29", resolved: "2025-11-27", summary: "API: Get Credit Builder–Enrolled Residents" },
+  { key: "CRM-5301", assignee: "Mauricio", status: "Done", priority: "High", created: "2025-08-29", resolved: "2025-11-27", summary: "API: Credit Builder Opt-Out" },
+  { key: "CRM-5302", assignee: "Julio", status: "To Do", priority: "Low", created: "2025-08-29", resolved: null, summary: "Add Bank Account Integration" },
+  { key: "CRM-5304", assignee: "Julio", status: "Done", priority: "High", created: "2025-08-29", resolved: "2025-10-16", summary: "Broken Access Control - modify existing score" },
+  { key: "CRM-5305", assignee: "Julio", status: "Done", priority: "High", created: "2025-08-29", resolved: "2025-10-16", summary: "Broken Access Control - bypass KBA steps" },
+  { key: "CRM-5306", assignee: "Julio", status: "Done", priority: "High", created: "2025-08-29", resolved: "2025-10-16", summary: "JWT does not expire after logout" },
+  { key: "CRM-5307", assignee: "Julio", status: "Done", priority: "High", created: "2025-08-29", resolved: "2025-10-16", summary: "No password policy enforced during registration" },
+  { key: "CRM-5337", assignee: "Alexis", status: "Done", priority: "High", created: "2025-09-03", resolved: "2025-12-01", summary: "Different Account Numbers in CB Report" },
+  { key: "CRM-5386", assignee: "Alexis", status: "Done", priority: "Medium", created: "2025-09-08", resolved: "2025-12-08", summary: "Prevent guarantors from enrolling via CB portal" },
+  { key: "CRM-5391", assignee: "Julio", status: "Done", priority: "High", created: "2025-09-08", resolved: "2025-09-23", summary: "Blank screen when trying to login CB portal" },
+  { key: "CRM-5567", assignee: "Julio", status: "Done", priority: "Medium", created: "2025-09-30", resolved: "2025-11-04", summary: "RealPage residents puller issue" },
+  { key: "CRM-5648", assignee: "Alexis", status: "Done", priority: "Highest", created: "2025-10-05", resolved: "2026-02-24", summary: "Use Monthly Rent Charge and Prior Credit for On-Time Rent" },
+  { key: "CRM-5649", assignee: "Julio", status: "Done", priority: "High", created: "2025-10-05", resolved: "2025-10-31", summary: "Use RealPage Rent Charge Open/Closed for On-Time Rent" },
+  { key: "CRM-5650", assignee: "Unassigned", status: "To Do", priority: "High", created: "2025-10-05", resolved: null, summary: "Improve CB Portal UI" },
+  { key: "CRM-5651", assignee: "Alexis", status: "Done", priority: "Medium", created: "2025-10-05", resolved: "2026-03-13", summary: "Enable Month-to-Month Residents to Stay Enrolled" },
+  { key: "CRM-5652", assignee: "Alexis", status: "To Do", priority: "Medium", created: "2025-10-05", resolved: null, summary: "Customer Monthly KPIs Report" },
+  { key: "CRM-5691", assignee: "Alexis", status: "Done", priority: "Medium", created: "2025-10-07", resolved: "2026-01-28", summary: "EVR Spur Cross #1091 - CB Portal Issues" },
+  { key: "CRM-5701", assignee: "Alexis", status: "Review", priority: "Highest", created: "2025-10-08", resolved: null, summary: "Enrollment Validation & Audit" },
+  { key: "CRM-5830", assignee: "Julio", status: "Done", priority: "High", created: "2025-10-22", resolved: "2025-10-23", summary: "San Palacio #1153" },
+  { key: "CRM-6003", assignee: "Mauricio", status: "Done", priority: "High", created: "2025-11-10", resolved: "2025-11-27", summary: "Cancellation email not sent after API Opt-Out" },
+  { key: "CRM-6004", assignee: "Mauricio", status: "Done", priority: "High", created: "2025-11-10", resolved: "2025-11-18", summary: "API does not return info without last name" },
+  { key: "CRM-6015", assignee: "Julio", status: "To Do", priority: "Low", created: "2025-11-13", resolved: null, summary: "Resident enrolled before lease start date" },
+  { key: "CRM-6146", assignee: "Julio", status: "To Do", priority: "Low", created: "2025-11-26", resolved: null, summary: "Issue to login in the CB portal" },
+  { key: "CRM-6151", assignee: "Julio", status: "To Do", priority: "Low", created: "2025-11-26", resolved: null, summary: "Resident was not charged for CB" },
+  { key: "CRM-6201", assignee: "Julio", status: "To Do", priority: "Low", created: "2025-12-01", resolved: null, summary: "CB Portal Login issue" },
+  { key: "CRM-6212", assignee: "Alexis", status: "Done", priority: "Highest", created: "2025-12-02", resolved: "2026-04-03", summary: "Weekly MTD Enrollment Status & Alerts" },
+  { key: "CRM-6213", assignee: "Alexis", status: "Code Review", priority: "High", created: "2025-12-02", resolved: null, summary: "Automate Monthly Revenue Report" },
+  { key: "CRM-6221", assignee: "Alexis", status: "Done", priority: "Low", created: "2025-12-02", resolved: "2026-01-19", summary: "Allow CB enrollment for ResMan employee-residents" },
+  { key: "CRM-6238", assignee: "Alexis", status: "Done", priority: "Low", created: "2025-12-03", resolved: "2026-01-03", summary: "Make sure residents are enrolled" },
+  { key: "CRM-6293", assignee: "Mauricio", status: "To Do", priority: "Low", created: "2025-12-08", resolved: null, summary: "Leases not showing credit builder amount" },
+  { key: "CRM-6370", assignee: "Julio", status: "Done", priority: "Low", created: "2025-12-15", resolved: "2026-01-07", summary: "Alexan Tempe #2003 - Credit Reporting" },
+  { key: "CRM-6423", assignee: "Julio", status: "Product Review", priority: "Medium", created: "2025-12-16", resolved: null, summary: "CB Post Charges with date in the future" },
+  { key: "CRM-6424", assignee: "Julio", status: "Under Discussion", priority: "Highest", created: "2025-12-16", resolved: null, summary: "CB Subscription Special Price" },
+  { key: "CRM-6495", assignee: "Alexis", status: "Done", priority: "Low", created: "2025-12-22", resolved: "2026-02-18", summary: "Update Credit Builder Email Address" },
+  { key: "CRM-6505", assignee: "Julio", status: "Done", priority: "Highest", created: "2025-12-23", resolved: "2025-12-24", summary: "Fix unit pull failures when RealPage UnitNumber repeats" },
+  { key: "CRM-6517", assignee: "Chintan", status: "Eng In Progress", priority: "Highest", created: "2025-12-23", resolved: null, summary: "Make CB portal pricing dynamic" },
+  { key: "CRM-6519", assignee: "Julio", status: "Done", priority: "Medium", created: "2025-12-23", resolved: "2026-01-19", summary: "Fix CB Production Report date logic" },
+  { key: "CRM-6545", assignee: "Alexis", status: "Done", priority: "Low", created: "2025-12-29", resolved: "2026-02-18", summary: "Quintana #3014 - Array account issue" },
+  { key: "CRM-6578", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-01-01", resolved: "2026-01-04", summary: "The Astor #438 - Error creating Array user" },
+  { key: "CRM-6588", assignee: "Julio", status: "To Do", priority: "Low", created: "2026-01-03", resolved: null, summary: "San Travesia #3056 - Error Creating Array User" },
+  { key: "CRM-6637", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-07", resolved: "2026-01-08", summary: "1st test scenario issue" },
+  { key: "CRM-6638", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-07", resolved: "2026-01-08", summary: "Reports are not sent via email" },
+  { key: "CRM-6639", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-07", resolved: "2026-01-08", summary: "Prevent email from enrollments on rollback" },
+  { key: "CRM-6640", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-07", resolved: "2026-01-08", summary: "Prevent email from cancelation on remediation" },
+  { key: "CRM-6641", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-07", resolved: "2026-01-08", summary: "Save rollback registers continuously" },
+  { key: "CRM-6649", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-08", resolved: "2026-01-13", summary: "Fix the way to obtain period enrollments" },
+  { key: "CRM-6652", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-08", resolved: "2026-02-17", summary: "Refactor centralized service for subscription new table" },
+  { key: "CRM-6661", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-09", resolved: "2026-01-13", summary: "Investigate way to preserve period data for reports" },
+  { key: "CRM-6662", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-09", resolved: "2026-01-15", summary: "Refactor styles" },
+  { key: "CRM-6680", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-01-12", resolved: "2026-02-18", summary: "CB Portal Login Error After Password Reset" },
+  { key: "CRM-6689", assignee: "Alexis", status: "Product Review", priority: "High", created: "2026-01-13", resolved: null, summary: "Use RealPage ids for update or creation" },
+  { key: "CRM-6695", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-01-13", resolved: "2026-01-20", summary: "Issues to login in the CB portal" },
+  { key: "CRM-6698", assignee: "Alexis", status: "Product Review", priority: "Low", created: "2026-01-13", resolved: null, summary: "CB Charges Applied to Canceled Applicant" },
+  { key: "CRM-6699", assignee: "Alexis", status: "Done", priority: "Highest", created: "2026-01-13", resolved: "2026-01-14", summary: "Paid before late date / Paid Entire Rent incorrect values" },
+  { key: "CRM-6708", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-01-14", resolved: "2026-01-28", summary: "Mira Santi #1067 - CB Login Issue" },
+  { key: "CRM-6744", assignee: "Unassigned", status: "Done", priority: "Low", created: "2026-01-16", resolved: "2026-01-17", summary: "CB Portal displaying (EMP)" },
+  { key: "CRM-6751", assignee: "Alexis", status: "Review", priority: "Highest", created: "2026-01-19", resolved: null, summary: "CB portal validations before Array user creation" },
+  { key: "CRM-6761", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-01-19", resolved: "2026-01-27", summary: "Generate payment line for Jovanny Quezada" },
+  { key: "CRM-6762", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-01-19", resolved: "2026-01-27", summary: "Generate payment line for Andy Herr" },
+  { key: "CRM-6779", assignee: "Alexis", status: "Review", priority: "Low", created: "2026-01-20", resolved: null, summary: "PMS Pull users warned of profile updates" },
+  { key: "CRM-6781", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-21", resolved: "2026-02-18", summary: "Data mismatch in CB reports vs revenue report" },
+  { key: "CRM-6782", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-21", resolved: "2026-02-18", summary: "Enrolment data matching in revenue and enrollment reports" },
+  { key: "CRM-6783", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-01-21", resolved: "2026-02-18", summary: "Property Revenue Net Revenue showing $0.00" },
+  { key: "CRM-6784", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-01-21", resolved: "2026-02-18", summary: "Calculator & Assumptions tab mismatch" },
+  { key: "CRM-6792", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-21", resolved: "2026-01-21", summary: "Report displays old transaction amount" },
+  { key: "CRM-6851", assignee: "Alexis", status: "Done", priority: "High", created: "2026-01-26", resolved: "2026-01-26", summary: "Report cannot be generated for mark taylor in staging" },
+  { key: "CRM-6863", assignee: "Julio", status: "Done", priority: "Low", created: "2026-01-26", resolved: "2026-01-29", summary: "Strong password validation not working" },
+  { key: "CRM-6864", assignee: "Julio", status: "Done", priority: "Low", created: "2026-01-26", resolved: "2026-01-29", summary: "Enrollment not completed - identity verification" },
+  { key: "CRM-6915", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-01-28", resolved: "2026-02-01", summary: "San Pedregal #2064 - CB Access Issue" },
+  { key: "CRM-6940", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-01-28", resolved: "2026-01-28", summary: "Generate payment line for John Zuk" },
+  { key: "CRM-6976", assignee: "Chintan", status: "Done", priority: "Medium", created: "2026-01-29", resolved: "2026-02-25", summary: "Enrollment showing hardcoded $14.95 for special price" },
+  { key: "CRM-7025", assignee: "Alexis", status: "Done", priority: "Highest", created: "2026-02-02", resolved: "2026-02-25", summary: "Unable to use admin feature to check CB charges" },
+  { key: "CRM-7088", assignee: "Alexis", status: "Code Review", priority: "Highest", created: "2026-02-05", resolved: null, summary: "Reports system" },
+  { key: "CRM-7150", assignee: "Julio", status: "Done", priority: "Highest", created: "2026-02-10", resolved: "2026-02-17", summary: "Investigate errors when residents setup CB from Portal" },
+  { key: "CRM-7168", assignee: "Gustavo", status: "Done", priority: "High", created: "2026-02-10", resolved: "2026-03-12", summary: "Update Privacy Policy Corpsite / Credit Builder" },
+  { key: "CRM-7182", assignee: "Alexis", status: "Eng In Progress", priority: "Low", created: "2026-02-11", resolved: null, summary: "AI Chatbot investigation" },
+  { key: "CRM-7189", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-02-11", resolved: "2026-02-26", summary: "Server Error (500) accessing resident user history" },
+  { key: "CRM-7231", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-12", resolved: "2026-02-13", summary: "Disable Save & edit for read-only subscription records" },
+  { key: "CRM-7232", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-12", resolved: "2026-02-15", summary: "Multiple pricing periods for same resident" },
+  { key: "CRM-7234", assignee: "Chintan", status: "Done", priority: "High", created: "2026-02-13", resolved: "2026-02-27", summary: "Admin: Subscription cancellation actions" },
+  { key: "CRM-7235", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-13", resolved: "2026-03-09", summary: "Admin: Email search on subscription list" },
+  { key: "CRM-7236", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-13", resolved: "2026-03-26", summary: "Admin: Property, Unit, Resident Type columns" },
+  { key: "CRM-7237", assignee: "Alexis", status: "Under Discussion", priority: "Low", created: "2026-02-13", resolved: null, summary: "Admin: Do Not Enroll subscription status" },
+  { key: "CRM-7238", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-13", resolved: "2026-03-26", summary: "Admin: Resident detail fields" },
+  { key: "CRM-7257", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-13", resolved: "2026-02-17", summary: "PMS Charges Pushed Report ParseError" },
+  { key: "CRM-7261", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-15", resolved: "2026-02-18", summary: "Monthly Summary cancellations count mismatch" },
+  { key: "CRM-7262", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-15", resolved: "2026-02-18", summary: "Potential residents count mismatch" },
+  { key: "CRM-7263", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-15", resolved: "2026-02-18", summary: "Total Enrollments and cancellations count mismatch" },
+  { key: "CRM-7264", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-02-15", resolved: "2026-02-15", summary: "PMC share amount includes only one property" },
+  { key: "CRM-7265", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-15", resolved: "2026-02-18", summary: "Property Performance: Property share value incorrect" },
+  { key: "CRM-7266", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-15", resolved: "2026-02-18", summary: "Calculator: Cumulative net enrollments incorrect" },
+  { key: "CRM-7287", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-02-16", resolved: "2026-02-17", summary: "Excel file downloads empty" },
+  { key: "CRM-7288", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-16", resolved: "2026-02-17", summary: "Same ResidentID creates duplicate records" },
+  { key: "CRM-7358", assignee: "Julio", status: "Eng In Progress", priority: "High", created: "2026-02-20", resolved: null, summary: "Credit Builder Autoenrollment Exclusion Rules" },
+  { key: "CRM-7367", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-02-20", resolved: "2026-02-23", summary: "Resident History returns AttributeError" },
+  { key: "CRM-7423", assignee: "Mahen", status: "Done", priority: "Low", created: "2026-02-25", resolved: "2026-02-26", summary: "Placeholder in cancellation email" },
+  { key: "CRM-7425", assignee: "Mahen", status: "Done", priority: "Medium", created: "2026-02-25", resolved: "2026-02-26", summary: "Success message not displayed" },
+  { key: "CRM-7511", assignee: "Unassigned", status: "Done", priority: "Low", created: "2026-03-02", resolved: "2026-03-02", summary: "Sites showing old Privacy policy" },
+  { key: "CRM-7612", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-03-06", resolved: "2026-03-22", summary: "New fields not appearing in cbresidentsubscription" },
+  { key: "CRM-7614", assignee: "Alexis", status: "Done", priority: "Low", created: "2026-03-06", resolved: "2026-03-22", summary: "Columns missing from cbresidentsubscription" },
+  { key: "CRM-7707", assignee: "Alexis", status: "Done", priority: "High", created: "2026-03-12", resolved: "2026-03-19", summary: "Lease Start Date mismatch" },
+  { key: "CRM-7708", assignee: "Alexis", status: "Done", priority: "High", created: "2026-03-12", resolved: "2026-03-19", summary: "End Date not displayed" },
+  { key: "CRM-7812", assignee: "Alexis", status: "Done", priority: "Medium", created: "2026-03-19", resolved: "2026-03-23", summary: "Estia Surprise Farms - CD SSN Error" },
+  { key: "CRM-7998", assignee: "Alexis", status: "Eng In Progress", priority: "Highest", created: "2026-04-01", resolved: null, summary: "Anomaly Detection Tool" },
+  { key: "CRM-8028", assignee: "Dmitry", status: "Done", priority: "Low", created: "2026-04-01", resolved: "2026-04-02", summary: "Remove duplicated" },
+  { key: "CRM-8085", assignee: "Alexis", status: "To Do", priority: "Low", created: "2026-04-06", resolved: null, summary: "Use new account ID for closed tradeline re-enroll" },
+  { key: "CRM-8086", assignee: "Alexis", status: "Product Review", priority: "High", created: "2026-04-06", resolved: null, summary: "Report all enrolled residents monthly - use D for non-payments" },
+  { key: "CRM-8087", assignee: "Alexis", status: "To Do", priority: "Low", created: "2026-04-06", resolved: null, summary: "Resolve duplicate trade lines from lease ID migration" },
+  { key: "CRM-8089", assignee: "Julio", status: "Eng In Progress", priority: "Highest", created: "2026-04-06", resolved: null, summary: "Avanti: Yardi nightly sync failing - 387 residents" },
+  { key: "CRM-8116", assignee: "Alexis", status: "Code Review", priority: "High", created: "2026-04-08", resolved: null, summary: "Goldelm at 414 Flats #618" },
+  { key: "CRM-8229", assignee: "Alexis", status: "Done", priority: "High", created: "2026-04-13", resolved: "2026-04-14", summary: "CB portal white screen on login" },
+  { key: "CRM-8232", assignee: "Alexis", status: "To Do", priority: "Low", created: "2026-04-13", resolved: null, summary: "Credit Builder History Comparisons" },
+];
+
+// ── SHARED COMPONENTS ──
+
+const SectionBar = ({ color, children }) => (<div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}><div style={{ width: 4, height: 28, borderRadius: 2, background: color }} /><h2 style={{ fontSize: 20, fontWeight: 600, color: C.text, margin: 0 }}>{children}</h2></div>);
+const Tag = ({ color, bg, children, style: s }) => (<span style={{ display: "inline-block", padding: "2px 9px", borderRadius: 5, fontSize: 11, fontWeight: 600, color, background: bg, whiteSpace: "nowrap", ...s }}>{children}</span>);
+const statusColor = s => { if (s === "Done") return { bg: "#E6F9E8", fg: "#1A7A24" }; if (s === "To Do") return { bg: C.borderSubtle, fg: C.textMuted }; return { bg: "#FEF3E2", fg: "#B57300" }; };
+const assigneeColor = a => { if (a === "Julio") return { bg: C.brandMuted, fg: "#033480" }; if (a === "Alexis") return { bg: "#E6F9E8", fg: "#1A7A24" }; if (a === "Chintan" || a === "Chao") return { bg: "#FEF3E2", fg: "#B57300" }; return { bg: C.borderSubtle, fg: C.textMuted }; };
+const JiraLink = ({ ticket }) => (<a href={`https://liftlytics.atlassian.net/browse/${ticket}`} target="_blank" rel="noopener noreferrer" style={{ color: C.brand, fontWeight: 600, textDecoration: "none", fontSize: 11 }}>{ticket}</a>);
+
+// ── TAB: OVERVIEW ──
+
+function OverviewTab() {
+  const stats = useMemo(() => { const done = tickets.filter(t => t.status === "Done").length; return { total: tickets.length, done, open: tickets.length - done }; }, []);
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 32 }}>
+        {[{ n: "18", l: "Months of development" }, { n: "7", l: "Product themes" }, { n: String(stats.total), l: "Jira tickets (in scope)" }, { n: String(stats.done), l: "Tickets completed" }, { n: String(stats.open), l: "Open / in progress" }].map((s, i) => (
+          <div key={i} style={{ background: C.brandLight, border: `1px solid ${C.brandMuted}`, borderRadius: 10, padding: "18px 12px", textAlign: "center" }}>
+            <div style={{ fontSize: 26, fontWeight: 700, color: C.brand, lineHeight: 1 }}>{s.n}</div>
+            <div style={{ fontSize: 11, fontWeight: 500, color: C.textMuted, marginTop: 6 }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ background: `linear-gradient(135deg, ${C.brandLight}, ${C.brandMuted})`, borderRadius: 12, padding: 24, border: `1px solid ${C.brandTint}`, marginBottom: 32 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: C.brand, marginBottom: 8 }}>Strongest Areas</div>
+            {["Reporting & visibility", "Lifecycle correctness", "Portal reliability", "Payment-history accuracy", "PMS vendor support"].map((s, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: C.success, flexShrink: 0 }} /><span style={{ fontSize: 13, color: C.text }}>{s}</span></div>
+            ))}
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: C.danger, marginBottom: 8 }}>Remaining Gaps</div>
+            {["Charge-posting oversight not centralized", "Eligibility not governed by state model", "Distributed charge logic across jobs", "Monitoring still too reactive", "No proactive anomaly detection on pushes"].map((s, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><div style={{ width: 7, height: 7, borderRadius: "50%", background: C.danger, flexShrink: 0 }} /><span style={{ fontSize: 13, color: C.text }}>{s}</span></div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <SectionBar color={C.brand}>Hardening Priority Order</SectionBar>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {phases.map((p, i) => (
+          <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 16, background: C.bg, borderRadius: 10, padding: "14px 20px", border: `1px solid ${C.borderSubtle}`, borderLeft: `4px solid ${p.color}` }}>
+            <div style={{ width: 32, height: 32, borderRadius: "50%", background: p.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{i + 1}</div>
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{p.title}</div><div style={{ fontSize: 12, color: C.textMuted }}>{p.focus}</div></div>
+            <Tag color={p.color} bg={`${p.color}15`}>{p.ticket}</Tag>
+            <div style={{ fontSize: 12, color: C.textSubtle, whiteSpace: "nowrap", fontWeight: 500 }}>{p.dates}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── TAB: THEMES (chronological, impact-forward) ──
+
+function ThemesTab() {
+  const [expanded, setExpanded] = useState(0);
+  return (
+    <div>
+      <SectionBar color={C.success}>Engineering Progress by Theme · Nov 2024 – Apr 2026</SectionBar>
+      <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 24, lineHeight: 1.6 }}>
+        Seven product areas systematically improved across 18 months by Julio, Alexis, Chao, Chintan, and others. Each theme shows the chronological sequence of work, the tickets that drove it, and the cumulative impact.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {themes.map((t, i) => {
+          const open = expanded === i;
+          return (
+            <div key={i} style={{ borderRadius: 12, border: `1px solid ${open ? t.color : C.borderSubtle}`, background: C.bg, overflow: "hidden" }}>
+              <div onClick={() => setExpanded(open ? -1 : i)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 20px", cursor: "pointer", background: open ? `${t.color}0a` : "transparent" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: t.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, flexShrink: 0 }}>{i + 1}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: C.text }}>{t.title}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted, marginTop: 3 }}>{t.milestones.length} milestones · {t.ticketsDone} tickets completed</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}><path d="M4 6L8 10L12 6" stroke={C.textSubtle} strokeWidth="1.5" strokeLinecap="round" /></svg>
+              </div>
+              {open && (
+                <div style={{ borderTop: `1px solid ${C.borderSubtle}` }}>
+                  {/* Impact headline */}
+                  <div style={{ padding: "16px 20px", background: `${t.color}08`, borderBottom: `1px solid ${C.borderSubtle}` }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.success, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 6L5.5 8.5L9 3.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: C.text, lineHeight: 1.6 }}>{t.impactHeadline}</div>
+                    </div>
+                  </div>
+                  {/* Chronological milestones */}
+                  <div style={{ padding: "16px 20px 20px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>Chronological Progress</div>
+                    <div style={{ position: "relative", paddingLeft: 24 }}>
+                      {/* Timeline line */}
+                      <div style={{ position: "absolute", left: 7, top: 8, bottom: 8, width: 2, background: C.borderSubtle, borderRadius: 1 }} />
+                      {t.milestones.map((m, j) => {
+                        const ac = assigneeColor(m.author.split(" ")[0]);
+                        return (
+                          <div key={j} style={{ position: "relative", marginBottom: j < t.milestones.length - 1 ? 14 : 0 }}>
+                            {/* Dot */}
+                            <div style={{ position: "absolute", left: -20, top: 6, width: 12, height: 12, borderRadius: "50%", background: C.bg, border: `2.5px solid ${t.color}`, zIndex: 1 }} />
+                            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: C.textSubtle, whiteSpace: "nowrap", minWidth: 80, paddingTop: 2 }}>{m.date}</div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 13, color: C.text, lineHeight: 1.55 }}>{m.desc}</div>
+                                <div style={{ display: "flex", gap: 8, marginTop: 5, alignItems: "center", flexWrap: "wrap" }}>
+                                  <Tag color={ac.fg} bg={ac.bg}>{m.author}</Tag>
+                                  {m.ticket && <JiraLink ticket={m.ticket} />}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── TAB: TIMELINE ──
+
+function TimelineTab() {
+  // ── Past work month mapping: Nov 2024 = 0 ... Apr 2026 = 17 ──
+  const pastMonthLabels = ["Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr"];
+  const pastYearLabels = ["2024","","2025","","","","","","","","","","","","2026","","",""];
+  const totalPastMonths = 18;
+  const LW = 210; // label width
+
+  const parseMonth = (s) => {
+    const map = { "Nov 2024":0,"Dec 2024":1,"Jan 2025":2,"Feb 2025":3,"Mar 2025":4,"Apr 2025":5,"May 2025":6,"Jun 2025":7,"Jul 2025":8,"Aug 2025":9,"Sep 2025":10,"Oct 2025":11,"Nov 2025":12,"Dec 2025":13,"Jan 2026":14,"Feb 2026":15,"Mar 2026":16,"Apr 2026":17 };
+    return map[s] ?? null;
+  };
+
+  // Parse milestone dates into { start, end } month indices
+  const parseMilestoneDate = (d) => {
+    // Handle ranges like "Jul–Sep 2025" or "Oct 2025–Feb 2026" or "Dec 2025–Apr 2026"
+    const rangeMatch = d.match(/^(\w+)\s*[\u2013–-]\s*(\w+)\s+(\d{4})$/);
+    if (rangeMatch) { return { start: parseMonth(`${rangeMatch[1]} ${rangeMatch[3]}`), end: parseMonth(`${rangeMatch[2]} ${rangeMatch[3]}`) }; }
+    const crossYearMatch = d.match(/^(\w+)\s+(\d{4})\s*[\u2013–-]\s*(\w+)\s+(\d{4})$/);
+    if (crossYearMatch) { return { start: parseMonth(`${crossYearMatch[1]} ${crossYearMatch[2]}`), end: parseMonth(`${crossYearMatch[3]} ${crossYearMatch[4]}`) }; }
+    const single = parseMonth(d);
+    if (single !== null) return { start: single, end: single };
+    return null;
+  };
+
+  // Build per-theme milestone positions
+  const themeRows = themes.map(t => ({
+    title: t.title,
+    color: t.color,
+    milestones: t.milestones.map(m => ({ ...m, pos: parseMilestoneDate(m.date) })).filter(m => m.pos),
+  }));
+
+  // Ticket resolution heatmap: count resolved tickets per month
+  const resolvedByMonth = useMemo(() => {
+    const counts = new Array(totalPastMonths).fill(0);
+    tickets.forEach(t => {
+      if (!t.resolved) return;
+      const [y, m] = t.resolved.split("-").map(Number);
+      let idx;
+      if (y === 2024) idx = m - 11; // Nov=0, Dec=1
+      else if (y === 2025) idx = m + 1; // Jan=2, Feb=3...
+      else if (y === 2026) idx = m + 13; // Jan=14, Feb=15...
+      if (idx >= 0 && idx < totalPastMonths) counts[idx]++;
+    });
+    return counts;
+  }, []);
+  const maxResolved = Math.max(...resolvedByMonth, 1);
+
+  // ── Future roadmap ──
+  const totalWeeks = 19;
+  const futureMonths = [{ label: "Apr", start: 0, end: 1.5 }, { label: "May", start: 1.5, end: 5.5 }, { label: "Jun", start: 5.5, end: 10 }, { label: "Jul", start: 10, end: 14.5 }, { label: "Aug", start: 14.5, end: 19 }];
+
+  return (
+    <div>
+      {/* ════════ PAST WORK TIMELINE ════════ */}
+      <SectionBar color={C.success}>Work Completed · Nov 2024 – Apr 2026</SectionBar>
+      <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 16, lineHeight: 1.6 }}>
+        Each row shows when milestones landed for that theme. Dots are individual deliverables; bars span multi-month efforts. The heatmap at the bottom shows ticket resolution volume per month.
+      </p>
+      <div style={{ background: C.bg, borderRadius: 12, border: `1px solid ${C.borderSubtle}`, padding: "20px 20px 16px", overflowX: "auto" }}>
+        {/* Month header */}
+        <div style={{ display: "flex", marginLeft: LW }}>
+          {pastMonthLabels.map((m, i) => (
+            <div key={i} style={{ width: `${100 / totalPastMonths}%`, textAlign: "center", flexShrink: 0 }}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: C.textSubtle }}>{m}</div>
+              {pastYearLabels[i] && <div style={{ fontSize: 9, color: C.textSubtle, marginTop: 1 }}>{pastYearLabels[i]}</div>}
+            </div>
+          ))}
+        </div>
+        <div style={{ height: 1, background: C.borderSubtle, marginTop: 6, marginBottom: 8, marginLeft: LW }} />
+
+        {/* Theme rows */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {themeRows.map((row, ri) => (
+            <div key={ri} style={{ display: "flex", alignItems: "center", minHeight: 32 }}>
+              <div style={{ width: LW, flexShrink: 0, paddingRight: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: row.color, flexShrink: 0 }} />
+                <div style={{ fontSize: 11, fontWeight: 600, color: C.text, lineHeight: 1.3 }}>{row.title}</div>
+              </div>
+              <div style={{ flex: 1, position: "relative", height: 24 }}>
+                {/* Background track */}
+                <div style={{ position: "absolute", inset: 0, background: C.bgSunken, borderRadius: 4 }} />
+                {/* Milestone dots/bars */}
+                {row.milestones.map((m, mi) => {
+                  const { start, end } = m.pos;
+                  const left = `${(start / totalPastMonths) * 100}%`;
+                  if (start === end) {
+                    // Dot
+                    return <div key={mi} title={`${m.date}: ${m.desc}`} style={{ position: "absolute", left, top: "50%", transform: "translate(-50%, -50%)", width: 10, height: 10, borderRadius: "50%", background: row.color, boxShadow: `0 0 0 2px ${C.bg}, 0 0 0 3px ${row.color}40`, zIndex: 2, cursor: "default" }} />;
+                  }
+                  // Bar for range
+                  const width = `${((end - start + 1) / totalPastMonths) * 100}%`;
+                  return <div key={mi} title={`${m.date}: ${m.desc}`} style={{ position: "absolute", left, width, top: 6, bottom: 6, background: `${row.color}cc`, borderRadius: 4, zIndex: 1, cursor: "default" }} />;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Ticket resolution heatmap */}
+        <div style={{ height: 1, background: C.borderSubtle, marginTop: 10, marginBottom: 8, marginLeft: LW }} />
+        <div style={{ display: "flex", alignItems: "center", minHeight: 36 }}>
+          <div style={{ width: LW, flexShrink: 0, paddingRight: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.textMuted }}>Tickets resolved</div>
+          </div>
+          <div style={{ flex: 1, display: "flex", gap: 2 }}>
+            {resolvedByMonth.map((count, i) => {
+              const intensity = count / maxResolved;
+              return (
+                <div key={i} title={`${pastMonthLabels[i]}: ${count} tickets`} style={{ flex: 1, height: 24, borderRadius: 3, background: count === 0 ? C.bgSunken : `rgba(18, 107, 249, ${0.15 + intensity * 0.75})`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "default" }}>
+                  {count > 0 && <span style={{ fontSize: 9, fontWeight: 700, color: intensity > 0.5 ? "#fff" : C.brand }}>{count}</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", marginTop: 8, marginLeft: LW, gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 14, height: 10, borderRadius: 2, background: "rgba(18,107,249,0.15)" }} /><span style={{ fontSize: 10, color: C.textSubtle }}>Low</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 14, height: 10, borderRadius: 2, background: "rgba(18,107,249,0.55)" }} /><span style={{ fontSize: 10, color: C.textSubtle }}>Medium</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 14, height: 10, borderRadius: 2, background: "rgba(18,107,249,0.90)" }} /><span style={{ fontSize: 10, color: C.textSubtle }}>High</span></div>
+          <span style={{ fontSize: 10, color: C.textSubtle, marginLeft: 8 }}>114 tickets resolved across 18 months</span>
+        </div>
+
+      </div>
+
+      {/* Divider */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "32px 0" }}>
+        <div style={{ flex: 1, height: 1, background: C.borderSubtle }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.danger }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: C.danger }}>Today: April 15, 2026</span>
+        </div>
+        <div style={{ flex: 1, height: 1, background: C.borderSubtle }} />
+      </div>
+
+      {/* ════════ FUTURE ROADMAP ════════ */}
+      <SectionBar color={C.brand}>Hardening Roadmap · Apr – Aug 2026</SectionBar>
+      <div style={{ background: C.bg, borderRadius: 12, border: `1px solid ${C.borderSubtle}`, padding: "24px 24px 16px", overflowX: "auto" }}>
+        <div style={{ display: "flex", marginBottom: 16, marginLeft: 220 }}>
+          {futureMonths.map(m => (<div key={m.label} style={{ width: `${((m.end - m.start) / totalWeeks) * 100}%`, fontSize: 12, fontWeight: 600, color: C.textMuted, textAlign: "center", borderBottom: `2px solid ${C.borderSubtle}`, paddingBottom: 8 }}>{m.label} 2026</div>))}
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {phases.map(p => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", minHeight: 44 }}>
+              <div style={{ width: 220, flexShrink: 0, paddingRight: 16 }}><div style={{ fontWeight: 600, fontSize: 13, color: C.text, lineHeight: 1.3 }}>{p.title}</div><div style={{ fontSize: 11, color: C.textSubtle }}>{p.ticket}</div></div>
+              <div style={{ flex: 1, position: "relative", height: 36 }}>
+                <div style={{ position: "absolute", inset: 0, background: C.bgSunken, borderRadius: 6 }} />
+                <div style={{ position: "absolute", left: `${(p.startWeek / totalWeeks) * 100}%`, width: `${(p.durationWeeks / totalWeeks) * 100}%`, top: 4, bottom: 4, background: `linear-gradient(90deg, ${p.color}, ${p.color}dd)`, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 2px 8px ${p.color}30` }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#fff", whiteSpace: "nowrap" }}>{p.durationWeeks}w</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sequencing rationale */}
+      <div style={{ marginTop: 24, background: C.brandLight, borderRadius: 10, padding: 20, border: `1px solid ${C.brandTint}` }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: C.brand, marginBottom: 10 }}>Sequencing Rationale</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {[{ label: "Phase 1–2", text: "Revenue & compliance first. Fix charge hardening and enrollment integrity before deeper rewrites." }, { label: "Phase 3", text: "Clean up audit findings and broaden anomaly coverage while enrollment validator results are fresh." }, { label: "Phase 4", text: "Architectural rewrite to state-driven eligibility. Depends on Phase 1–3 foundations being stable." }, { label: "Phase 5", text: "Support tooling last — most value once pipeline and eligibility model are hardened." }].map((item, i) => (
+            <div key={i}><div style={{ fontWeight: 600, fontSize: 12, color: C.brandDark, marginBottom: 4 }}>{item.label}</div><div style={{ fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{item.text}</div></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── TAB: PHASE DETAILS (with ticket mapping) ──
+
+function PhasesTab() {
+  const [exp, setExp] = useState(1);
+
+  const delivStatusLabel = (d) => {
+    if (d.status === "needs_ticket") return { label: "Needs Ticket", bg: "#FEF3E2", fg: "#B57300", icon: "+" };
+    if (d.status === "in_progress") return { label: "In Progress", bg: "#FEF3E2", fg: "#B57300", icon: "◐" };
+    if (d.status === "in_review") return { label: "In Review", bg: C.brandMuted, fg: "#033480", icon: "◑" };
+    if (d.status === "under_discussion") return { label: "Under Discussion", bg: C.borderSubtle, fg: C.textMuted, icon: "?" };
+    return { label: "Done", bg: "#E6F9E8", fg: "#1A7A24", icon: "✓" };
+  };
+
+  return (
+    <div>
+      <SectionBar color={C.brand}>Phase Details & Ticket Coverage</SectionBar>
+      <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 24, lineHeight: 1.6 }}>
+        Each deliverable is mapped to an existing Jira ticket or flagged as needing a new one. Items marked <Tag color="#B57300" bg="#FEF3E2" style={{ verticalAlign: "middle" }}>Needs Ticket</Tag> should be created during sprint planning for that phase.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {phases.map(p => {
+          const open = exp === p.id;
+          const needsCount = p.deliverables.filter(d => d.status === "needs_ticket").length;
+          const hasCount = p.deliverables.length - needsCount;
+          return (
+            <div key={p.id} style={{ borderRadius: 12, border: `1px solid ${open ? p.color : C.borderSubtle}`, background: C.bg, overflow: "hidden" }}>
+              {/* Header */}
+              <div onClick={() => setExp(open ? null : p.id)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 20px", cursor: "pointer", background: open ? `${p.color}08` : "transparent" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: p.color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16, flexShrink: 0 }}>{p.id}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: C.text }}>{p.title}</div>
+                  <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{p.dates} · {p.durationWeeks} weeks</div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                  <Tag color={p.color} bg={`${p.color}12`}>{p.priority}</Tag>
+                  {needsCount > 0 && <Tag color="#B57300" bg="#FEF3E2">{needsCount} need tickets</Tag>}
+                  <Tag color="#1A7A24" bg="#E6F9E8">{hasCount} have tickets</Tag>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }}><path d="M4 6L8 10L12 6" stroke={C.textSubtle} strokeWidth="1.5" strokeLinecap="round" /></svg>
+              </div>
+              {open && (
+                <div style={{ borderTop: `1px solid ${C.borderSubtle}` }}>
+                  {/* Why it matters */}
+                  <div style={{ padding: "16px 20px", background: C.bgSunken, borderBottom: `1px solid ${C.borderSubtle}` }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 6 }}>Why This Phase Matters</div>
+                    <div style={{ fontSize: 13, color: C.textSec, lineHeight: 1.65 }}>{p.whyItMatters}</div>
+                  </div>
+                  {/* Deliverables with ticket mapping */}
+                  <div style={{ padding: "16px 20px 20px" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>Deliverables</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {p.deliverables.map((d, i) => {
+                        const ds = delivStatusLabel(d);
+                        return (
+                          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", background: d.status === "needs_ticket" ? "#FFFCF5" : C.bg, borderRadius: 8, border: `1px solid ${d.status === "needs_ticket" ? "#F0DFB8" : C.borderSubtle}` }}>
+                            <div style={{ width: 22, height: 22, borderRadius: 6, background: ds.bg, color: ds.fg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{ds.icon}</div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{d.text}</div>
+                              <div style={{ display: "flex", gap: 8, marginTop: 5, alignItems: "center", flexWrap: "wrap" }}>
+                                <Tag color={ds.fg} bg={ds.bg}>{ds.label}</Tag>
+                                {d.ticket && <JiraLink ticket={d.ticket} />}
+                                {d.note && <span style={{ fontSize: 11, color: C.textSubtle, fontStyle: "italic" }}>{d.note}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* State model for Phase 4 */}
+                    {p.states && (
+                      <div style={{ marginTop: 20, padding: 16, background: C.bgSunken, borderRadius: 10, border: `1px solid ${C.borderSubtle}` }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Target Resident Eligibility States</div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {p.states.map((s, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, background: `${s.color}12`, border: `1px solid ${s.color}30` }}>
+                              <div style={{ width: 10, height: 10, borderRadius: "50%", background: s.color }} />
+                              <span style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{s.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── TAB: JIRA ──
+
+function JiraTab() {
+  const [fA, setFA] = useState(""); const [fS, setFS] = useState("");
+  const assignees = useMemo(() => [...new Set(tickets.map(t => t.assignee))].sort(), []);
+  const statuses = useMemo(() => [...new Set(tickets.map(t => t.status))].sort(), []);
+  const filtered = useMemo(() => tickets.filter(t => (!fA || t.assignee === fA) && (!fS || t.status === fS)), [fA, fS]);
+  const sel = { padding: "6px 12px", border: `1px solid ${C.borderDefault}`, borderRadius: 6, fontSize: 13, fontFamily: "Inter, sans-serif", color: C.textSec, background: C.bg, cursor: "pointer" };
+  return (
+    <div>
+      <SectionBar color={C.brand}>Jira Tickets — Epic CRM-2060</SectionBar>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Assignee:</span>
+        <select value={fA} onChange={e => setFA(e.target.value)} style={sel}><option value="">All</option>{assignees.map(a => <option key={a} value={a}>{a}</option>)}</select>
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginLeft: 12 }}>Status:</span>
+        <select value={fS} onChange={e => setFS(e.target.value)} style={sel}><option value="">All</option>{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: C.textSubtle }}>{filtered.length} ticket{filtered.length !== 1 ? "s" : ""}</span>
+      </div>
+      <div style={{ borderRadius: 10, border: `1px solid ${C.borderSubtle}`, overflow: "hidden" }}>
+        <div style={{ maxHeight: 520, overflowY: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr>{["Key", "Assignee", "Status", "Priority", "Created", "Resolved", "Summary"].map(h => (<th key={h} style={{ background: C.brandDark, color: "#fff", fontWeight: 600, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase", padding: "10px 12px", textAlign: "left", whiteSpace: "nowrap", position: "sticky", top: 0, zIndex: 1 }}>{h}</th>))}</tr></thead>
+            <tbody>
+              {filtered.map((t, i) => { const sc = statusColor(t.status); const ac = assigneeColor(t.assignee); return (
+                <tr key={t.key} style={{ borderBottom: `1px solid ${C.borderSubtle}`, background: i % 2 === 0 ? C.bg : C.brandLight }}>
+                  <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}><a href={`https://liftlytics.atlassian.net/browse/${t.key}`} target="_blank" rel="noopener noreferrer" style={{ color: C.brand, fontWeight: 600, textDecoration: "none" }}>{t.key}</a></td>
+                  <td style={{ padding: "8px 12px" }}><Tag color={ac.fg} bg={ac.bg}>{t.assignee}</Tag></td>
+                  <td style={{ padding: "8px 12px" }}><Tag color={sc.fg} bg={sc.bg}>{t.status}</Tag></td>
+                  <td style={{ padding: "8px 12px", color: C.textSec }}>{t.priority}</td>
+                  <td style={{ padding: "8px 12px", color: C.textMuted, whiteSpace: "nowrap" }}>{t.created}</td>
+                  <td style={{ padding: "8px 12px", color: C.textMuted, whiteSpace: "nowrap" }}>{t.resolved || "—"}</td>
+                  <td style={{ padding: "8px 12px", color: C.textSec, maxWidth: 340 }}>{t.summary}</td>
+                </tr>
+              ); })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN ──
+
+const allTabs = [
+  { id: "overview", label: "Overview" },
+  { id: "themes", label: "Progress by Theme" },
+  { id: "timeline", label: "Roadmap" },
+  { id: "phases", label: "Phase Details" },
+  { id: "jira", label: "Jira Tickets" },
+];
+
+function App() {
+  const [activeTab, setActiveTab] = useState("overview");
+  return (
+    <div style={{ fontFamily: "Inter, system-ui, -apple-system, Arial, sans-serif", color: C.text, background: C.bgSunken, minHeight: "100vh" }}>
+      <div style={{ background: `linear-gradient(135deg, ${C.brandDark} 0%, ${C.brand} 100%)`, padding: "32px 32px 20px", position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, right: 0, width: 340, height: "100%", background: "linear-gradient(135deg, transparent 0%, rgba(18,107,249,0.12) 100%)", pointerEvents: "none" }} />
+        <div style={{ maxWidth: 1020, margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 18, color: "#fff", letterSpacing: 0.5, marginBottom: 24 }}>UNION</div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: "#fff", margin: "0 0 6px" }}>Credit Builder: Product Progress & Hardening Plan</h1>
+          <p style={{ fontSize: 14, color: C.brandTint, margin: "0 0 4px", lineHeight: 1.5, maxWidth: 700 }}>18 months of engineering progress, 146 Jira tickets, and a 5-phase hardening roadmap — Epic CRM-2060</p>
+          <span style={{ display: "inline-block", marginTop: 12, padding: "5px 14px", background: "rgba(18,107,249,0.2)", border: "1px solid rgba(18,107,249,0.3)", borderRadius: 6, fontSize: 13, fontWeight: 500, color: C.brandMuted }}>November 2024 – August 2026</span>
+          <div style={{ display: "flex", gap: 3, marginTop: 20, flexWrap: "wrap" }}>
+            {allTabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ padding: "8px 16px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: activeTab === tab.id ? C.bgSunken : "rgba(255,255,255,0.1)", color: activeTab === tab.id ? C.text : "rgba(255,255,255,0.7)", transition: "all 0.15s" }}>{tab.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 1020, margin: "0 auto", padding: "24px 32px 48px" }}>
+        {activeTab === "overview" && <OverviewTab />}
+        {activeTab === "themes" && <ThemesTab />}
+        {activeTab === "timeline" && <TimelineTab />}
+        {activeTab === "phases" && <PhasesTab />}
+        {activeTab === "jira" && <JiraTab />}
+      </div>
+      <div style={{ padding: "24px 32px", background: C.bgSunken, borderTop: `1px solid ${C.borderSubtle}`, textAlign: "center" }}>
+        <p style={{ fontSize: 12, color: C.textSubtle }}>Credit Builder Product Progress Review · Union · Epic CRM-2060 · April 2026</p>
+      </div>
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+
+  </script>
 </body>
 </html>
