@@ -820,7 +820,7 @@ const allTabs = [
   { id: "jira", label: "Jira Tickets" },
 ];
 
-export default function App() {
+function App() {
   const [activeTab, setActiveTab] = useState("overview");
   return (
     <div style={{ fontFamily: "Inter, system-ui, -apple-system, Arial, sans-serif", color: C.text, background: C.bgSunken, minHeight: "100vh" }}>
