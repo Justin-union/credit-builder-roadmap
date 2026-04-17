@@ -38,8 +38,8 @@ const themes = [
   {
     title: "Enrollment & Eligibility",
     color: C.brand,
-    impactHeadline: "Eliminated false enrollments, missed cancellations, and incorrect charges to former residents across all PMS vendors.",
-    ticketsDone: 12,
+    impactHeadline: "Eliminated false enrollments, missed cancellations, and incorrect charges to former residents across all PMS vendors, while moving toward a more systematic enrollment validation model.",
+    ticketsDone: 13,
     milestones: [
       { date: "Jan 2025", author: "Julio", desc: "Tightened ResMan sync to exclude guarantors from enrollment", ticket: "CRM-3474" },
       { date: "Jan 2025", author: "Julio", desc: "Auto-cancel logic for residents transitioning to former status", ticket: null },
@@ -51,18 +51,19 @@ const themes = [
       { date: "Dec 2025", author: "Alexis / Julio", desc: "Added is_self_enrolled tracking with backfill so self-enrolled residents are not auto-canceled", ticket: null },
       { date: "Jan 2026", author: "Alexis", desc: "Allowed ResMan employee-residents with (EMP) naming to enroll correctly", ticket: "CRM-6221" },
       { date: "Jan 2026", author: "Alexis / Julio", desc: "Blocked applicants from portal access; fixed RealPage resident pull edge cases", ticket: null },
-      { date: "Feb 2026", author: "Julio", desc: "Autoenrollment exclusion rules to prevent bad enrollments at source", ticket: "CRM-7358" },
+      { date: "Apr 2026", author: "Alexis", desc: "Enrollment validation and audit work in review to create a shared eligibility validator and more systematic auditing of active enrollments", ticket: "CRM-5701" },
     ],
   },
   {
     title: "Subscription Lifecycle & Cancellation",
     color: C.indigo,
-    impactHeadline: "Moved CB from a flat status flag to a real subscription system with auditability, admin controls, and safe lifecycle transitions.",
-    ticketsDone: 14,
+    impactHeadline: "Moved CB from a flat status flag to a real subscription system with auditability, admin controls, safe lifecycle transitions, and support for pricing flexibility.",
+    ticketsDone: 15,
     milestones: [
       { date: "Feb 2025", author: "Julio", desc: "Built scheduled property-level deactivation with automatic resident cancellation", ticket: "CRM-3656" },
       { date: "Feb 2026", author: "Julio", desc: "Introduced CBSubscriptionType and CBResidentSubscription models — the first real subscription architecture", ticket: null },
       { date: "Feb 2026", author: "Alexis / Julio", desc: "Lease removal now triggers unsubscription; auto-created subscription types per property", ticket: null },
+      { date: "Jan 2026", author: "Julio", desc: "Built the foundation for special subscription pricing by migrating subscription data into the new subscription tables and enabling property-level subscription types for grandfathered or discounted residents", ticket: "CRM-6424" },
       { date: "Feb 2026", author: "Chintan", desc: "Added admin cancellation actions: Opt-Out & Notify, and Silent Opt-Out", ticket: "CRM-7234" },
       { date: "Feb 2026", author: "Alexis", desc: "Disabled save/edit buttons for read-only subscription records", ticket: "CRM-7231" },
       { date: "Feb 2026", author: "Alexis", desc: "Fixed multiple pricing periods showing for same resident in admin", ticket: "CRM-7232" },
@@ -158,13 +159,14 @@ const themes = [
     title: "Monitoring, Alerts & Launch Controls",
     color: C.info,
     impactHeadline: "Team can now spot enrollment drops before customers complain. Launch discipline improved and premature notifications eliminated.",
-    ticketsDone: 6,
+    ticketsDone: 7,
     milestones: [
       { date: "Dec 2024", author: "Julio", desc: "Scheduled checks for enrolled residents missing enrollment dates", ticket: null },
       { date: "Nov 2025", author: "Chao", desc: "Added email_notification_enabled_date so notifications only start when properties are ready", ticket: null },
       { date: "Nov 2025", author: "Chao", desc: "Temporarily excluded properties during testing, then cleaned up for go-live", ticket: null },
       { date: "Dec 2025–Apr 2026", author: "Alexis", desc: "Built weekly MTD enrollment health check with Datadog alerts — first proactive monitoring for CB", ticket: "CRM-6212" },
       { date: "Dec 2025", author: "Alexis", desc: "Automated the monthly Credit Builder revenue report using billing-cycle windows and property-level pricing, replacing manual Excel work for customer reporting", ticket: "CRM-6213" },
+      { date: "Apr 2026", author: "Alexis", desc: "Internal read-only AI support assistant for Slack in progress, focused on answering operational and code-path questions safely from CRM data and codebase context", ticket: "CRM-7182" },
       { date: "Apr 2026", author: "Alexis", desc: "Anomaly detection tool in progress — foundation for charge oversight", ticket: "CRM-7998" },
     ],
   },
@@ -217,7 +219,7 @@ const hardeningStatus = {
     {
       title: "Enrollment invalidation and remediation",
       detail: "The centralized enrollment invalidation work is in review, and once it clears, the team can run remediation and clean up bad enrollments more systematically.",
-      tickets: ["CRM-5701", "CRM-7358"],
+      tickets: ["CRM-5701"],
     },
   ],
   next: [
@@ -227,13 +229,18 @@ const hardeningStatus = {
       tickets: ["CRM-7998"],
     },
     {
-      title: "Error-report performance",
-      detail: "The current error report reportedly takes 6 to 8 hours to generate, which makes it much less useful operationally. That needs optimization.",
+      title: "Array report generation performance",
+      detail: "The current Array report generation reportedly takes 6 to 8 hours, which makes it much less useful operationally. That needs optimization.",
       tickets: [],
     },
     {
       title: "Simplify fragile opt-out logic",
       detail: "The current opt-out model depends on brittle history and workaround logic. Alexis called out simplification here as an important next hardening step.",
+      tickets: [],
+    },
+    {
+      title: "Upgrade Yardi integrations from SOAP to REST",
+      detail: "Yardi is moving its APIs from SOAP to REST. Billing and payments are nearly live, ILS will follow later, and Yardi will stop adding updates to the current SOAP version once REST is live. That makes this an important next-up integration priority.",
       tickets: [],
     },
   ],
@@ -757,20 +764,6 @@ function TimelineTab() {
         </div>
 
       </div>
-
-      <div style={{ marginTop: 24, background: C.brandLight, borderRadius: 10, padding: 20, border: `1px solid ${C.brandTint}` }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: C.brand, marginBottom: 10 }}>Read on the current state</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          {[
-            { label: "What the page should emphasize", text: "Shipped hardening work, active hardening work, and the immediate next operational priorities." },
-            { label: "What the page should avoid", text: "Speculative multi-phase architecture plans that are not yet aligned with what engineering is actually discussing and shipping." },
-            { label: "Current operational center of gravity", text: "Charge posting visibility, clearer alerting, and stronger pre-run and post-run controls." },
-            { label: "Why this framing is better", text: "It reflects Alexis and Julio's work more accurately and makes the story easier for Ethan and others to follow." },
-          ].map((item, i) => (
-            <div key={i}><div style={{ fontWeight: 600, fontSize: 12, color: C.brandDark, marginBottom: 4 }}>{item.label}</div><div style={{ fontSize: 12, color: C.textSec, lineHeight: 1.5 }}>{item.text}</div></div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -927,7 +920,9 @@ function App() {
       <div style={{ background: `linear-gradient(135deg, ${C.brandDark} 0%, ${C.brand} 100%)`, padding: "32px 32px 20px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, right: 0, width: 340, height: "100%", background: "linear-gradient(135deg, transparent 0%, rgba(18,107,249,0.12) 100%)", pointerEvents: "none" }} />
         <div style={{ maxWidth: 1020, margin: "0 auto", position: "relative", zIndex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 18, color: "#fff", letterSpacing: 0.5, marginBottom: 24 }}>UNION</div>
+          <div style={{ marginBottom: 24 }}>
+            <img src="union-logo.png" alt="Union" style={{ height: 28, width: "auto", display: "block", filter: "brightness(0) invert(1)" }} />
+          </div>
           <h1 style={{ fontSize: 28, fontWeight: 700, color: "#fff", margin: "0 0 6px" }}>Credit Builder: Product Progress & Hardening Status</h1>
           <p style={{ fontSize: 14, color: C.brandTint, margin: "0 0 4px", lineHeight: 1.5, maxWidth: 700 }}>18 months of engineering progress, current hardening work, and immediate next steps grounded in active Credit Builder work — Epic CRM-2060</p>
           <span style={{ display: "inline-block", marginTop: 12, padding: "5px 14px", background: "rgba(18,107,249,0.2)", border: "1px solid rgba(18,107,249,0.3)", borderRadius: 6, fontSize: 13, fontWeight: 500, color: C.brandMuted }}>November 2024 – August 2026</span>
