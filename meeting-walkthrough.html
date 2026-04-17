@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Credit Builder Meeting Walkthrough</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --text: #111827;
+      --muted: #4b5563;
+      --line: #e5e7eb;
+      --blue: #2563eb;
+      --bg: #ffffff;
+      --card: #f9fafb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 36px 24px 72px;
+    }
+    h1 {
+      font-size: 30px;
+      line-height: 1.1;
+      margin: 0 0 8px;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 26px;
+    }
+    .section {
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+      margin-top: 18px;
+    }
+    .label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 8px;
+    }
+    h2 {
+      font-size: 20px;
+      margin: 0 0 10px;
+    }
+    .say {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+    .end {
+      margin-top: 24px;
+      padding: 16px;
+      border-radius: 12px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Credit Builder Meeting Walkthrough</h1>
+    <div class="sub">Shorter, punchier talk track.</div>
+
+    <div class="section">
+      <div class="label">Open</div>
+      <div class="say">
+        I put this together to make the Credit Builder work easier to understand at a glance, both in terms of the progress we have already made and the hardening work that is actively happening now.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">Overview</div>
+      <div class="say">
+        The point of the overview is to show that this has been a broad product-maturity effort, not just a series of isolated fixes. Over time, we have hardened enrollment, subscriptions, billing operations, reporting accuracy, and the resident experience, and this page is meant to make that easier to see.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">Progress by Theme</div>
+      <div class="say">
+        One important thing to call out here is that several of these themes are really part of one broader billing hardening effort. PMS sync and billing reliability is the execution layer, admin tooling gives us visibility and traceability, and monitoring and alerts give us earlier detection and more control. Together, those areas represent a lot of the billing hardening work we have done.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">Timeline</div>
+      <div class="say">
+        The timeline reinforces that this has been steady product improvement over time, not just one-off reactive fixes.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">Hardening Status</div>
+      <div class="say">
+        This is the key section for right now. The current focus is practical hardening: better pre-run visibility, better alerting, anomaly detection, and stronger post-run audit and reconciliation. That is the story I would emphasize.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="label">Close</div>
+      <div class="say">
+        The headline is that Credit Builder has already improved a lot, and now we are making charge posting more visible, more auditable, and more reliable operationally.
+      </div>
+    </div>
+
+    <div class="end">
+      <strong>Fast version:</strong><br><br>
+      This page shows both the progress Credit Builder has already made and the hardening work happening now. A big part of that story is billing hardening, across execution, visibility, and monitoring, and the current focus is making charge posting easier to see, manage, and trust.
+    </div>
+  </div>
+</body>
+</html>
